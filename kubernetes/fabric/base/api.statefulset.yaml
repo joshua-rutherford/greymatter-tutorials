@@ -1,0 +1,94 @@
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    app: api
+    cluster: fabric.api
+  name: api
+  namespace: fabric
+spec:
+  replicas: 1
+  updateStrategy:
+    type: RollingUpdate
+  selector:
+    matchLabels:
+      app: api
+      cluster: fabric.api
+  serviceName: api
+  template:
+    metadata:
+      labels:
+        app: api
+        cluster: fabric.api
+    spec:
+      serviceAccount: api
+      containers:
+        - name: sidecar
+          image: "docker.production.deciphernow.com/deciphernow/gm-proxy:1.1.1-alpine"
+          imagePullPolicy: IfNotPresent
+          args:
+            - -c
+            - /etc/greymatter/config.yaml
+          command:
+            - /app/gm-proxy
+          ports:
+            - name: metrics
+              containerPort: 8080
+            - name: sidecar
+              containerPort: 8443
+          volumeMounts:
+            - name: sidecar-config
+              mountPath: /etc/greymatter
+              readOnly: true
+            - name: spire-socket
+              mountPath: /run/spire/socket
+              readOnly: false
+        - name: api
+          image: docker.production.deciphernow.com/deciphernow/gm-control-api:1.1.0-alpine
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GM_CONTROL_API_ADDRESS
+              value: "127.0.0.1:10080"
+            - name: GM_CONTROL_API_LOG_LEVEL
+              value: "info"
+            - name: GM_CONTROL_API_ORG_KEY
+              value: "quickstart"
+            - name: GM_CONTROL_API_PERSISTER_PATH
+              value: "/var/lib/greymatter/data/backend.json"
+            - name: GM_CONTROL_API_PERSISTER_TYPE
+              value: "file"
+            - name: GM_CONTROL_API_ZONE_KEY
+              value: "default.zone"
+            - name: GM_CONTROL_API_ZONE_NAME
+              value: "default.zone"
+          ports:
+            - name: http
+              containerPort: 10080
+              protocol: TCP
+          volumeMounts:
+            - name: api-data
+              mountPath: /var/lib/greymatter
+              readOnly: false
+      securityContext:
+        runAsUser: 100
+        runAsGroup: 101
+        fsGroup: 100
+      volumes:
+        - name: sidecar-config
+          configMap:
+            name: api-sidecar
+        - name: spire-socket
+          hostPath:
+            path: /run/spire/socket
+            type: DirectoryOrCreate
+  volumeClaimTemplates:
+    - metadata:
+        name: api-data
+        namespace: fabric
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi

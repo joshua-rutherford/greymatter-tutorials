@@ -1,0 +1,84 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: control
+    cluster: fabric.control
+  name: control
+  namespace: fabric
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: control
+      cluster: fabric.control
+  template:
+    metadata:
+      labels:
+        app: control
+        cluster: fabric.control
+    spec:
+      serviceAccountName: control
+      containers:
+        - name: sidecar
+          image: "docker.production.deciphernow.com/deciphernow/gm-proxy:1.1.1-alpine"
+          imagePullPolicy: IfNotPresent
+          args:
+            - -c
+            - /etc/greymatter/config.yaml
+          command:
+            - /app/gm-proxy
+          ports:
+            - name: metrics
+              containerPort: 8080
+              protocol: TCP
+            - name: sidecar
+              containerPort: 8443
+              protocol: TCP
+          volumeMounts:
+            - name: sidecar-config
+              mountPath: /etc/greymatter
+              readOnly: true
+            - name: spire-socket
+              mountPath: /run/spire/socket
+              readOnly: false
+        - name: control
+          image: index.docker.io/deciphernow/gm-control:spire
+          imagePullPolicy: IfNotPresent
+          env:
+            - name: GM_CONTROL_API_HOST
+              value: "127.0.0.1:9080"
+            - name: GM_CONTROL_API_KEY
+              value: "UNUSED"
+            - name: GM_CONTROL_API_SSL
+              value: "false"
+            - name: GM_CONTROL_API_ZONE_NAME
+              value: "default.zone"
+            - name: GM_CONTROL_CMD
+              value: "kubernetes"
+            - name: GM_CONTROL_CONSOLE_LEVEL
+              value: "info"
+            - name: GM_CONTROL_KUBERNETES_CLUSTER_LABEL
+              value: "cluster"
+            - name: GM_CONTROL_KUBERNETES_NAMESPACES
+              value: "fabric"
+            - name: GM_CONTROL_KUBERNETES_PORT_NAME
+              value: "sidecar"
+            - name: GM_CONTROL_XDS_ADS_ENABLED
+              value: "true"
+            - name: GM_CONTROL_XDS_ADDR
+              value: "127.0.0.1:10080"
+            - name: GM_CONTROL_XDS_RESOLVE_DNS
+              value: "true"
+          ports:
+            - name: grpc
+              containerPort: 10080
+              protocol: TCP
+      volumes:
+        - name: sidecar-config
+          configMap:
+            name: control-sidecar
+        - name: spire-socket
+          hostPath:
+            path: /run/spire/socket
+            type: DirectoryOrCreate

@@ -1,0 +1,17 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - spire.namespace.yaml
+  - server.ca.secret.yaml
+  - server.tls.secret.yaml
+  - server.bundle.configmap.yaml
+  - server.config.configmap.yaml
+  - server.serviceaccount.yaml
+  - server.clusterrole.yaml
+  - server.clusterrolebinding.yaml
+  - server.role.yaml
+  - server.rolebinding.yaml
+  - server.registrar.service.yaml
+  - server.server.service.yaml
+  - server.statefulset.yaml
+  - server.validatingwebhookconfiguration.yaml
